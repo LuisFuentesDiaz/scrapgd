@@ -70,6 +70,12 @@ web_modules/
 .env.*
 !.env.example
 
+# Bot VIP: estado de sesión (cookies Cloudflare, etc.)
+.vip-browser-state.json
+
+# Catálogo generado (archivos por película)
+catalogo/
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
