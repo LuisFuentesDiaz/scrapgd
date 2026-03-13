@@ -11,10 +11,10 @@ const CATALOGO_DIR = 'catalogo';
 
 const HEADERS = ['Título', 'Año', 'Calidad', 'Enlace VIP', 'Links VIP', 'URL ficha'];
 
-/** Año: "(2025)" */
-const YEAR_REGEX = /\((\d{4})\)/;
-/** Calidad: "1080p" o "[1080p]", "720p" o "[720p]". Se ignora 4K. */
-const QUALITY_REGEX = /\[?(1080p|720p)\]?/i;
+/** Año: "(2025)" o "2025" en cualquier parte del título */
+const YEAR_REGEX = /\((\d{4})\)|\b((?:19|20)\d{2})\b/;
+/** Calidad: 1080p, 4K, 720p, 480p o 1080 (se normaliza a 1080p), con o sin paréntesis/corchetes. */
+const QUALITY_REGEX = /[\[\(]?(1080p|4k|720p|480p|1080)[\]\)]?/i;
 
 /**
  * Extrae año y calidad desde el título.
@@ -24,9 +24,11 @@ const QUALITY_REGEX = /\[?(1080p|720p)\]?/i;
 export function parseTitleInfo(title) {
   const yearMatch = title.match(YEAR_REGEX);
   const qualityMatch = title.match(QUALITY_REGEX);
+  let quality = qualityMatch ? qualityMatch[1].toLowerCase() : null;
+  if (quality === '1080') quality = '1080p';
   return {
-    year: yearMatch ? yearMatch[1] : null,
-    quality: qualityMatch ? qualityMatch[1].toLowerCase() : null,
+    year: yearMatch ? (yearMatch[1] || yearMatch[2]) : null,
+    quality,
   };
 }
 

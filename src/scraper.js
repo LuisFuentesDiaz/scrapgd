@@ -2,6 +2,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import https from 'https';
 import { getScraperExtraHeaders } from './utils.js';
+import { shouldIgnoreTitle } from './filters.js';
 
 const BASE_URL = 'https://www.peliculasgd.net';
 const insecure = process.env.SCRAPGD_INSECURE_SSL === '1';
@@ -54,7 +55,10 @@ export async function scrape(url) {
 
 /**
  * Scraper específico para peliculasgd.net.
- * Extrae el listado de películas (excluye series: títulos que contienen "Temporada").
+ * Extrae el listado de entradas (películas/series). El filtrado de
+ * títulos a ignorar (series, 4K, etc.) se hace en index.js mediante
+ * IGNORE_TITLE_PATTERNS.
+ *
  * @param {string} [url] - URL a scrapear (por defecto: página principal)
  * @returns {Promise<{ entries: Array<{ title: string, url: string }>, pageTitle: string }>}
  */
@@ -77,8 +81,8 @@ export async function scrapePeliculasGd(url = BASE_URL) {
     const href = $(el).attr('href');
     const title = $(el).text().trim();
     if (!href || !title) return;
-    // Excluir series: ignorar títulos que mencionen "Temporada"
-    if (title.toLowerCase().includes('temporada')) return;
+    // Filtro temprano por título (series, 4K, etc.)
+    if (shouldIgnoreTitle(title)) return;
     // Solo enlaces del mismo sitio (entradas de películas)
     if (href.startsWith(BASE_URL) && href !== BASE_URL + '/' && !href.includes('/page/')) {
       entries.push({ title, url: href });

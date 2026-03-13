@@ -16,7 +16,7 @@ export async function fetchVipPage(url) {
     'User-Agent':
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
     Cookie:
-    'muser=17106; msession=71f6877bbae47590796d229ef3dcb456; cf_clearance=PW1kJM.HldeMGl.crNoqQuwE5sYCpbqQU8IktarzKlM-1773115943-1.2.1.1-IDBo992saWjTwKcYK4WYlu1KzWb5bhERZB..L38xsmN80c7zcxrZFsaeyIrR4Fct2IkpY7eGrsIwytEh1Pk8v7qfYvlE_BrHkrXeuo1X81HdzQ5JpR52WGLBXTtRnwxG.KWnZiKwK41GoaHZ6az8OroC_N4ChkYcQRTA9l8Vuii1mtQ_cMHvkto0N09EjyFX4YDYPdLJQh5AoOtqkBUZrPredoWvxtu7xd3D9Y30TLI',
+    'muser=17106; msession=71f6877bbae47590796d229ef3dcb456; cf_clearance=aRpOdNOHOo4Rft9ai5OFUtRkQzQFSq7JqAZspG95to0-1773437439-1.2.1.1-LBsbaBIM51xyQ_Td3G_t_VfgH6BlLzB2yHmO_DnDdGnoUXcglfulfTlYQDQHvGoz5EHZtlcKBWHUyLaiWczuNEbrhxIDHDoRYJts1GlEYndZh5YsWc8ouJJaIB_tLh29J6f3DFb7BBmIdJTu3Z7NuCv2m75vTJA1jE0JSSZ1GdospCsV_zQoAgHxRYZ0t2EmJ.6egq98l5K55KRloXsyBReWjYptFdhvh.Cy_fZ0BB4',
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp',
     'Accept-Language': 'es-ES,es;q=0.9',
     'Cache-Control': 'no-cache',
@@ -48,10 +48,11 @@ export async function extractVipLinks(vipUrl) {
     const body = await fetchVipPage(vipUrl);
     const all = extractVipSectionLinks(body);
     const allowedDomains = ['drive.google.com', '1fichier.com', 'mega.nz', 'mediafire.com'];
-    return all.filter((href) => {
+    const links = all.filter((href) => {
       const lower = href.toLowerCase();
       return allowedDomains.some((d) => lower.includes(d));
     });
+    return links;
   } catch {
     return [];
   }
