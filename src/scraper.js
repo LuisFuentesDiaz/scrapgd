@@ -60,7 +60,7 @@ export async function scrape(url) {
  * IGNORE_TITLE_PATTERNS.
  *
  * @param {string} [url] - URL a scrapear (por defecto: página principal)
- * @returns {Promise<{ entries: Array<{ title: string, url: string }>, pageTitle: string }>}
+ * @returns {Promise<{ entries: Array<{ title: string, url: string, posterUrl: string | null }>, pageTitle: string }>}
  */
 export async function scrapePeliculasGd(url = BASE_URL) {
   const targetUrl = url.startsWith('http') ? url : `${BASE_URL}/${url.replace(/^\//, '')}`;
@@ -77,27 +77,33 @@ export async function scrapePeliculasGd(url = BASE_URL) {
   const pageTitle = $('title').text().trim();
   const entries = [];
 
-  $('h2 a, h3 a').each((_, el) => {
-    const href = $(el).attr('href');
-    const title = $(el).text().trim();
-    if (!href || !title) return;
-    // Filtro temprano por título (series, 4K, etc.)
+  $('div.pelicula').each((_, el) => {
+    const $pel = $(el);
+    const link = $pel.find('h2 a').attr('href') || $pel.find('.poster a').attr('href');
+    const title = ($pel.find('h2 a').attr('title') || $pel.find('h2 a').text() || $pel.find('h3').text()).trim();
+    if (!link || !title) return;
     if (shouldIgnoreTitle(title)) return;
-    // Solo enlaces del mismo sitio (entradas de películas)
-    if (href.startsWith(BASE_URL) && href !== BASE_URL + '/' && !href.includes('/page/')) {
-      entries.push({ title, url: href });
+    if (link.startsWith(BASE_URL) && link !== BASE_URL + '/' && !link.includes('/page/')) {
+      const posterUrl =
+        $pel.find('.poster img').attr('src') ||
+        $pel.find('img').first().attr('src') ||
+        null;
+      entries.push({ title, url: link, posterUrl });
     }
   });
 
-  // Quitar duplicados por URL (algunos temas repiten el mismo enlace)
-  const seen = new Set();
-  const unique = entries.filter((e) => {
-    if (seen.has(e.url)) return false;
-    seen.add(e.url);
-    return true;
-  });
+  // Deduplicar por URL; si hay repetidos, quedarnos con uno que tenga posterUrl
+  const byUrl = new Map();
+  for (const e of entries) {
+    const existing = byUrl.get(e.url);
+    if (!existing) {
+      byUrl.set(e.url, e);
+    } else if (!existing.posterUrl && e.posterUrl) {
+      byUrl.set(e.url, { ...existing, posterUrl: e.posterUrl });
+    }
+  }
 
-  return { pageTitle, entries: unique };
+  return { pageTitle, entries: Array.from(byUrl.values()) };
 }
 
 const BITLY_EXCLUDE = 'bit.ly/2ZeFunO';
@@ -165,7 +171,7 @@ function findVipLink($) {
 /**
  * Entra en la página de una película y extrae el enlace de "Ver Enlaces Vip".
  * @param {string} moviePageUrl - URL de la ficha de la película en peliculasgd.net
- * @returns {Promise<{ title: string, url: string, vipLink: string | null }>}
+ * @returns {Promise<{ title: string, url: string, vipLink: string | null, posterUrl: string | null }>}
  */
 export async function getMovieVipLink(moviePageUrl) {
   const targetUrl = moviePageUrl.startsWith('http') ? moviePageUrl : `${BASE_URL}/${moviePageUrl.replace(/^\//, '')}`;
@@ -181,6 +187,11 @@ export async function getMovieVipLink(moviePageUrl) {
   const $ = cheerio.load(html);
   const title = cleanPageTitle($('title').text().trim());
   const vipLink = findVipLink($);
+  const posterUrl =
+    $('img.aligncenter').first().attr('src') ||
+    $('.poster img').first().attr('src') ||
+    $('.marco-sinopsis img').first().attr('src') ||
+    null;
 
-  return { title, url: targetUrl, vipLink };
+  return { title, url: targetUrl, vipLink, posterUrl };
 }

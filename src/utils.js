@@ -34,6 +34,40 @@ export function isDownloadLink(href, domains = DOWNLOAD_DOMAINS) {
   return domains.some((d) => lower.includes(d));
 }
 
+/** Mapa dominio → nombre de fuente para vip_links.fuente */
+const VIP_FUENTE_MAP = [
+  [ 'drive.google.com', 'Google Drive' ],
+  [ 'mega.nz', 'Mega' ],
+  [ 'mediafire.com', 'Mediafire' ],
+  [ '1fichier.com', '1fichier' ],
+];
+
+/**
+ * Obtiene la fuente (Google Drive, Mega, etc.) a partir de la URL de un enlace VIP.
+ * @param {string} url
+ * @returns {string | null}
+ */
+export function getFuenteFromUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  const lower = url.toLowerCase();
+  for (const [domain, name] of VIP_FUENTE_MAP) {
+    if (lower.includes(domain)) return name;
+  }
+  return null;
+}
+
+/**
+ * Para enlaces de Google Drive: devuelve la URL de previsualización (reemplaza /view?... por /preview).
+ * La URL original no se modifica; este valor es solo para guardar en vip_links.preview.
+ * @param {string} url
+ * @returns {string | null}
+ */
+export function getPreviewFromUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  if (!url.toLowerCase().includes('drive.google.com')) return null;
+  return url.replace(/\/view(\?.*)?$/i, '/preview');
+}
+
 /**
  * Pausa la ejecución durante N milisegundos.
  * @param {number} ms

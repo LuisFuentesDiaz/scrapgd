@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node src/index.js",
     "scrape": "node src/index.js",
-    "vip": "node src/vip-browser.js"
+    "vip": "node src/vip-browser.js",
+    "db": "node src/db-init.js",
+    "retry-links": "node src/retry-missing-links.js"
   },
   "keywords": [
     "scraping",
