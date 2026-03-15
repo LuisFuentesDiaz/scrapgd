@@ -7,22 +7,34 @@ import { cleanMovieTitle } from './filters.js';
 import { getFuenteFromUrl, getPreviewFromUrl } from './utils.js';
 
 const PELICULAS_GD_URL = 'https://www.peliculasgd.net/';
-const PAGINAS_A_PROCESAR = 200; // Página 1 (portada) y página 2
+const PAGINAS_A_PROCESAR = 16; // cantidad de páginas a recorrer
+const PAGINA_COMIENZO = parseInt(process.env.SCRAPGD_PAGE_START, 10) || 184; // páginas ya recorridas (0 = desde la 1); ej. 10 → se recorren de la 11 a la 10+PAGINAS_A_PROCESAR
 const DELAY_ENTRE_PELICULAS_MS = 800;
 const DELAY_PELICULA_EXISTE_MS = 501;
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
+  const pageFrom = Math.max(1, PAGINA_COMIENZO); // primera página a recorrer (comienzo 10 → empezamos en la 11)
+  const pageTo = PAGINA_COMIENZO + PAGINAS_A_PROCESAR;
   console.log('Scrapgd — PeliculasGD.net\n');
+  console.log(`Páginas: ${pageFrom} a ${pageTo} (${PAGINAS_A_PROCESAR} páginas${PAGINA_COMIENZO > 0 ? `, empezando después de la página ${PAGINA_COMIENZO}` : ''})\n`);
 
   const db = await getDb();
   let totalNuevas = 0;
   let totalOmitidas = 0;
 
-  for (let p = 1; p <= PAGINAS_A_PROCESAR; p++) {
+  for (let p = pageFrom; p <= pageTo; p++) {
     const url = p === 1 ? PELICULAS_GD_URL : `${PELICULAS_GD_URL}page/${p}/`;
-    const { pageTitle, entries } = await scrapePeliculasGd(url);
+    let pageTitle, entries;
+    try {
+      const result = await scrapePeliculasGd(url);
+      pageTitle = result.pageTitle;
+      entries = result.entries;
+    } catch (err) {
+      console.log(`Página ${p}: error (${err?.code === 'ECONNABORTED' ? 'timeout' : err?.message || err}), se omite`);
+      continue;
+    }
     console.log(`Página ${p}: ${pageTitle} — ${entries.length} películas`);
 
     for (let i = 0; i < entries.length; i++) {
@@ -42,55 +54,70 @@ async function main() {
       }
 
       // 2) Scraping normal de ficha + VIP
-      const data = await getMovieVipLink(e.url);
-      let vipLinks = [];
-      if (data.vipLink) {
-        vipLinks = await extractVipLinks(data.vipLink);
-      }
+      let hadLinks = false;
+      try {
+        const data = await getMovieVipLink(e.url);
+        let vipLinks = [];
+        if (data.vipLink) {
+          vipLinks = await extractVipLinks(data.vipLink);
+        }
 
-      const { year, quality } = parseTitleInfo(data.title);
-      const baseTitle = cleanMovieTitle(data.title, { year, quality });
+        const currentYear = new Date().getFullYear();
+        const { year, quality } = parseTitleInfo(data.title, { maxYear: currentYear });
+        const baseTitle = cleanMovieTitle(data.title, { year, quality });
 
-      // Reconstruir título mostrando año y calidad normalizados: "Nombre (año) - [calidad]"
-      let finalTitle = baseTitle;
-      const suffixParts = [];
-      if (year) suffixParts.push(`(${year})`);
-      if (quality) suffixParts.push(`[${quality}]`);
-      if (suffixParts.length) {
-        finalTitle = `${baseTitle} ${suffixParts.join(' - ')}`;
-      }
+        // Reconstruir título mostrando año y calidad normalizados: "Nombre (año) - [calidad]"
+        let finalTitle = baseTitle;
+        const suffixParts = [];
+        if (year) suffixParts.push(`(${year})`);
+        if (quality) suffixParts.push(`[${quality}]`);
+        if (suffixParts.length) {
+          finalTitle = `${baseTitle} ${suffixParts.join(' - ')}`;
+        }
 
-      // 3) Insertar en BD
-      const result = await db.run(
-        'INSERT INTO movies (page_number, title, year, quality, peliculasgd_url, vip_url, poster_url) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        p,
-        finalTitle,
-        year || null,
-        quality || null,
-        data.url,
-        data.vipLink || null,
-        e.posterUrl || data.posterUrl || null,
-      );
-      const movieId = result.lastID;
-
-      for (const link of vipLinks) {
-        const fuente = getFuenteFromUrl(link);
-        const preview = getPreviewFromUrl(link);
-        await db.run(
-          'INSERT OR IGNORE INTO vip_links (movie_id, url, fuente, preview) VALUES (?, ?, ?, ?)',
-          movieId,
-          link,
-          fuente,
-          preview,
+        // 3) Insertar en BD (upload_date = ahora, download_attempts = 0)
+        const uploadDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const result = await db.run(
+          'INSERT INTO movies (page_number, title, year, quality, peliculasgd_url, vip_url, poster_url, download_attempts, upload_date) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)',
+          p,
+          finalTitle,
+          year || null,
+          quality || null,
+          data.url,
+          data.vipLink || null,
+          e.posterUrl || data.posterUrl || null,
+          uploadDate,
         );
-      }
+        const movieId = result.lastID;
 
-      totalNuevas++;
-      const badge = data.vipLink ? (vipLinks.length ? ` OK (${vipLinks.length} links)` : ' OK (0 links)') : ' (sin VIP)';
-      console.log(badge);
+        // Si no se obtuvieron enlaces, contar este intento fallido
+        if (vipLinks.length === 0) {
+          await db.run('UPDATE movies SET download_attempts = download_attempts + 1 WHERE id = ?', movieId);
+        }
+
+        for (const link of vipLinks) {
+          const source = getFuenteFromUrl(link);
+          const preview = getPreviewFromUrl(link);
+          await db.run(
+            'INSERT OR IGNORE INTO vip_links (movie_id, url, source, preview) VALUES (?, ?, ?, ?)',
+            movieId,
+            link,
+            source,
+            preview,
+          );
+        }
+
+        totalNuevas++;
+        hadLinks = vipLinks.length > 0;
+        const badge = data.vipLink ? (vipLinks.length ? ` OK (${vipLinks.length} links)` : ' OK (0 links)') : ' (sin VIP)';
+        console.log(badge);
+      } catch (err) {
+        const msg = err?.code === 'ECONNABORTED' ? 'timeout' : (err?.message || String(err));
+        console.log(` error (${msg}), se omite`);
+      }
 
       if (i < entries.length - 1) {
-        const delayMs = vipLinks.length > 0 ? 400 + Math.round(Math.random() * 400) : DELAY_ENTRE_PELICULAS_MS;
+        const delayMs = hadLinks ? 400 + Math.round(Math.random() * 400) : DELAY_ENTRE_PELICULAS_MS;
         await delay(delayMs);
       }
     }

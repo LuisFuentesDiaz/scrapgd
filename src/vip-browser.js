@@ -16,7 +16,7 @@ export async function fetchVipPage(url) {
     'User-Agent':
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
     Cookie:
-    'muser=17106; msession=71f6877bbae47590796d229ef3dcb456; cf_clearance=w2OU9bYI1uf3pZoBP8JZAK9NtcEmmIidniWSUmrUhVE-1773512677-1.2.1.1-NDxueSpwPOq9i1SOionq_L7gFKoxg8z86kdP.kVOcTqb0.nvghqzC_bTS4r4yZI70sAHc9F3Cf0IlyukFUhNnjOeaQ4RnVAhENS3d.xGPAuSWnMESJi3cTlkiTmP6Jlzd.nKb5O82veNHs9YHJhE9f_LAomuK0_CorIdvz1c9AyV84kLnINLX3DQa6mrfkeHidFAMpYQFjjArmb1R3v7Ghgr1hbz3fRcXq.ev9fxzsU',
+    'muser=17106; msession=71f6877bbae47590796d229ef3dcb456; cf_clearance=iUZltvGkWlhLpQHoldr3BZ4cO0CUXKVDWv8oihnbKxw-1773533806-1.2.1.1-hfb.nhW0A8zI0TyxznGpYXayS9.2MgI3TqraQXLgf8bfn_2qLN9_SKVwVn_G4waN3fyg.E7JMlaU6mP2564r0nTWAWEhuzt7m805Ai9130Ku9uNyFWIMMMEB76J_HVk3QFzK3AlaqStsBqaM2txBzE9eSpGsJG9qiW4Lbt6.0UMIiqHKHNCZcWXyWywsgxgRHBGWB8l0klgL.pliLTjkwJMBhMcMBJgcA1b5uzHYYqY',
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp',
     'Accept-Language': 'es-ES,es;q=0.9',
     'Cache-Control': 'no-cache',

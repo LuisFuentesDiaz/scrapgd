@@ -62,13 +62,15 @@ export async function scrape(url) {
  * @param {string} [url] - URL a scrapear (por defecto: página principal)
  * @returns {Promise<{ entries: Array<{ title: string, url: string, posterUrl: string | null }>, pageTitle: string }>}
  */
+const SCRAPE_PAGE_TIMEOUT_MS = parseInt(process.env.SCRAPGD_TIMEOUT_MS, 10) || 25000;
+
 export async function scrapePeliculasGd(url = BASE_URL) {
   const targetUrl = url.startsWith('http') ? url : `${BASE_URL}/${url.replace(/^\//, '')}`;
   const agent = getAgent(targetUrl);
 
   const { data: html } = await axios.get(targetUrl, {
     headers: defaultHeaders,
-    timeout: 15000,
+    timeout: SCRAPE_PAGE_TIMEOUT_MS,
     httpsAgent: agent,
     httpAgent: agent,
   });
@@ -179,7 +181,7 @@ export async function getMovieVipLink(moviePageUrl) {
 
   const { data: html } = await axios.get(targetUrl, {
     headers: defaultHeaders,
-    timeout: 15000,
+    timeout: SCRAPE_PAGE_TIMEOUT_MS,
     httpsAgent: agent,
     httpAgent: agent,
   });

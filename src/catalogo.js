@@ -11,25 +11,42 @@ const CATALOGO_DIR = 'catalogo';
 
 const HEADERS = ['Título', 'Año', 'Calidad', 'Enlace VIP', 'Links VIP', 'URL ficha'];
 
-/** Año: "(2025)" o "2025" en cualquier parte del título */
-const YEAR_REGEX = /\((\d{4})\)|\b((?:19|20)\d{2})\b/;
+/** Año entre paréntesis: "(2020)" — tiene prioridad para no confundir con títulos como "2067" */
+const YEAR_IN_PARENS_REGEX = /\((\d{4})\)/;
+/** Año suelto: "2020" o "1999" (solo si no hay año entre paréntesis válido) */
+const YEAR_BARE_REGEX = /\b((?:19|20)\d{2})\b/;
 /** Calidad: 1080p, 4K, 720p, 480p o 1080 (se normaliza a 1080p), con o sin paréntesis/corchetes. */
 const QUALITY_REGEX = /[\[\(]?(1080p|4k|720p|480p|1080)[\]\)]?/i;
 
+function parseYear(title, maxYear) {
+  const inParens = title.match(YEAR_IN_PARENS_REGEX);
+  if (inParens) {
+    const y = inParens[1];
+    if (maxYear == null || parseInt(y, 10) <= maxYear) return y;
+  }
+  const bare = title.match(YEAR_BARE_REGEX);
+  if (bare) {
+    const y = bare[1];
+    if (maxYear == null || parseInt(y, 10) <= maxYear) return y;
+  }
+  return null;
+}
+
 /**
  * Extrae año y calidad desde el título.
+ * El año entre paréntesis "(2020)" tiene prioridad sobre un número suelto (ej. "2067" como título).
+ * Si opts.maxYear está definido, ningún año mayor se considera válido.
  * @param {string} title
+ * @param {{ maxYear?: number }} [opts] - maxYear: año máximo válido (ej. año actual)
  * @returns {{ year: string | null, quality: string | null }}
  */
-export function parseTitleInfo(title) {
-  const yearMatch = title.match(YEAR_REGEX);
+export function parseTitleInfo(title, opts = {}) {
+  const maxYear = opts.maxYear != null ? opts.maxYear : null;
   const qualityMatch = title.match(QUALITY_REGEX);
   let quality = qualityMatch ? qualityMatch[1].toLowerCase() : null;
   if (quality === '1080') quality = '1080p';
-  return {
-    year: yearMatch ? (yearMatch[1] || yearMatch[2]) : null,
-    quality,
-  };
+  const year = parseYear(title, maxYear);
+  return { year, quality };
 }
 
 /**

@@ -34,7 +34,7 @@ export function isDownloadLink(href, domains = DOWNLOAD_DOMAINS) {
   return domains.some((d) => lower.includes(d));
 }
 
-/** Mapa dominio → nombre de fuente para vip_links.fuente */
+/** Mapa dominio → nombre de fuente para vip_links.source */
 const VIP_FUENTE_MAP = [
   [ 'drive.google.com', 'Google Drive' ],
   [ 'mega.nz', 'Mega' ],

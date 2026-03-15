@@ -59,12 +59,43 @@ export function extractLinksFromHtml(html, opts = {}) {
   return { allLinks, downloadLinks, resolved: downloadLinks.length > 0 };
 }
 
+/** Dominios que identifican enlaces de descarga (para elegir el bloque correcto) */
+const DOWNLOAD_DOMAIN_MARKERS = ['drive.google.com', '1fichier.com', 'mega.nz', 'mediafire.com'];
+
 /**
- * Extrae todos los enlaces dentro de la sección "Enlaces de Descargas"
- * de una página VIP (HTML completo).
- *
- * Busca un texto que contenga "Enlaces de Descargas" y toma todos los
- * <a href> dentro del contenedor de pestañas asociado (tab_content).
+ * Localiza el .tab_content que contiene los enlaces de descarga.
+ * No depende del texto de la pestaña ni de nextAll: elige el bloque que más enlaces
+ * de descarga (drive, mega, 1fichier, mediafire) contenga.
+ * @param {ReturnType<typeof cheerio.load>} $
+ * @returns {cheerio.Cheerio}
+ */
+function findDownloadTabContent($) {
+  const $all = $('.tab_content');
+  if (!$all.length) return $();
+
+  let best = $all.first();
+  let bestCount = 0;
+
+  $all.each((_, el) => {
+    const $box = $(el);
+    let count = 0;
+    $box.find('a[href^="http"]').each((__, a) => {
+      const href = $(a).attr('href') || '';
+      const lower = href.toLowerCase();
+      if (DOWNLOAD_DOMAIN_MARKERS.some((d) => lower.includes(d))) count++;
+    });
+    if (count > bestCount) {
+      bestCount = count;
+      best = $box;
+    }
+  });
+
+  return best;
+}
+
+/**
+ * Extrae todos los enlaces dentro de la sección de descargas de una página VIP (HTML completo).
+ * Soporta pestañas "Enlaces de Descargas", "vip", "descargas", etc.
  *
  * @param {string} html - Código HTML de la página VIP
  * @returns {string[]} - Lista de URLs encontradas en la sección de descargas
@@ -72,39 +103,38 @@ export function extractLinksFromHtml(html, opts = {}) {
 export function extractVipSectionLinks(html) {
   const $ = cheerio.load(html || '');
   const links = [];
+  const container = findDownloadTabContent($);
 
-  // 1) Intentar localizar el bloque específico: tabs → "Enlaces de Descargas" → tab_container/tab_content
-  const marker = $('*:contains("Enlaces de Descargas")').filter(function () {
-    return $(this).text().includes('Enlaces de Descargas');
-  }).first();
-
-  let container = null;
-  if (marker.length) {
-    // Ejemplo de estructura:
-    // <ul class="tabs"><li><div href="#tab1"><b>Enlaces de Descargas</b></div></li></ul>
-    // <div class="tab_container"><div id="tab1" class="tab_content"> ... </div></div>
-    const tabs = marker.closest('.tabs');
-    if (tabs.length) {
-      const tabContainer = tabs.nextAll('.tab_container').first();
-      if (tabContainer.length) {
-        container = tabContainer.find('.tab_content').first();
-      }
+  // Extraer enlaces: primero desde el contenedor de pestañas
+  const seen = new Set();
+  function addLink(href) {
+    if (!href || !href.startsWith('http')) return;
+    const norm = href.replace(/&amp;/g, '&').trim();
+    if (norm.length < 500 && !seen.has(norm)) {
+      seen.add(norm);
+      links.push(norm);
     }
   }
 
-  // 2) Fallback: si no se encontró con la estructura anterior, usar el primer .tab_content
-  if (!container || !container.length) {
-    container = $('.tab_content').first();
+  if (container && container.length) {
+    container.find('a[href]').each((_, el) => addLink($(el).attr('href')));
+    const containerHtml = container.html() || '';
+    const urlRegex = /https?:\/\/[^\s<>"')\]\]]+/g;
+    let m;
+    while ((m = urlRegex.exec(containerHtml)) !== null) {
+      addLink(m[0].replace(/[.,;:!?)]+$/, '').trim());
+    }
   }
 
-  // 3) Extraer todos los enlaces http(s) dentro del contenedor elegido
-  if (container && container.length) {
-    container.find('a[href]').each((_, el) => {
-      const href = $(el).attr('href');
-      if (href && href.startsWith('http')) {
-        links.push(href);
-      }
-    });
+  // Fallback: si no se encontró nada, buscar en toda la página (estructura distinta o sin .tab_content)
+  if (links.length === 0) {
+    $('a[href]').each((_, el) => addLink($(el).attr('href')));
+    const fullHtml = $('body').html() || $.html() || '';
+    const urlRegex = /https?:\/\/[^\s<>"')\]\]]+/g;
+    let m;
+    while ((m = urlRegex.exec(fullHtml)) !== null) {
+      addLink(m[0].replace(/[.,;:!?)]+$/, '').trim());
+    }
   }
 
   return links;

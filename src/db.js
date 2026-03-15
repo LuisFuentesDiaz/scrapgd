@@ -24,14 +24,16 @@ export async function getDb() {
       quality TEXT,
       peliculasgd_url TEXT UNIQUE,
       vip_url TEXT,
-      poster_url TEXT
+      url_poster TEXT,
+      download_attempts INTEGER DEFAULT 0,
+      upload_date TEXT
     );
 
     CREATE TABLE IF NOT EXISTS vip_links (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       movie_id INTEGER NOT NULL,
       url TEXT NOT NULL,
-      fuente TEXT,
+      source TEXT,
       preview TEXT,
       FOREIGN KEY (movie_id) REFERENCES movies(id) ON DELETE CASCADE
     );
@@ -41,23 +43,19 @@ export async function getDb() {
 
     DROP VIEW IF EXISTS v_movies_catalog;
     CREATE VIEW v_movies_catalog AS
-    SELECT m.title AS name, m.year, m.quality, m.poster_url, v.url, v.fuente, v.preview
+    SELECT m.title AS name, m.year, m.quality, m.url_poster, v.url, v.source ,v.preview, m.upload_date 
     FROM movies m
     LEFT JOIN vip_links v ON v.movie_id = m.id
-    where v.fuente = 'Google Drive';
+    WHERE v.source = 'Google Drive';
 
     DROP VIEW IF EXISTS v_movies_sin_vip_links;
     CREATE VIEW v_movies_sin_vip_links AS
-    SELECT m.id, m.page_number, m.title, m.year, m.quality, m.peliculasgd_url, m.vip_url, m.poster_url
+    SELECT m.id, m.page_number, m.title, m.year, m.quality, m.peliculasgd_url, m.vip_url, m.url_poster, m.download_attempts, m.upload_date
     FROM movies m
     LEFT JOIN vip_links v ON v.movie_id = m.id
     WHERE v.id IS NULL;
   `);
 
-  // Migración: añadir columnas en BDs ya existentes
-  await db.exec('ALTER TABLE movies ADD COLUMN poster_url TEXT').catch(() => {});
-  await db.exec('ALTER TABLE vip_links ADD COLUMN fuente TEXT').catch(() => {});
-  await db.exec('ALTER TABLE vip_links ADD COLUMN preview TEXT').catch(() => {});
 
   return db;
 }

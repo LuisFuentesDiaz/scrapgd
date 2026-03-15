@@ -20,11 +20,13 @@ export async function retryMoviesMissingLinks() {
   const db = await getDb();
 
   const missing = await db.all(
-    `SELECT id, title, vip_url FROM v_movies_sin_vip_links WHERE vip_url IS NOT NULL ORDER BY id`
+    `SELECT id, title, vip_url FROM v_movies_sin_vip_links
+     WHERE vip_url IS NOT NULL AND COALESCE(download_attempts, 0) < 3
+     ORDER BY id`
   );
 
   if (!missing.length) {
-    console.log('No hay películas sin enlaces que tengan vip_url. Nada que reejecutar.');
+    console.log('No hay películas sin enlaces (con vip_url y menos de 3 intentos). Nada que reejecutar.');
     await db.close();
     return { processed: 0, withLinks: 0, stillMissing: 0 };
   }
@@ -49,13 +51,13 @@ export async function retryMoviesMissingLinks() {
 
     if (links.length) {
       for (const url of links) {
-        const fuente = getFuenteFromUrl(url);
+        const source = getFuenteFromUrl(url);
         const preview = getPreviewFromUrl(url);
         await db.run(
-          'INSERT OR IGNORE INTO vip_links (movie_id, url, fuente, preview) VALUES (?, ?, ?, ?)',
+          'INSERT OR IGNORE INTO vip_links (movie_id, url, source, preview) VALUES (?, ?, ?, ?)',
           movie.id,
           url,
-          fuente,
+          source,
           preview
         );
       }
@@ -63,6 +65,7 @@ export async function retryMoviesMissingLinks() {
       console.log(` OK (${links.length} links)`);
     } else {
       stillMissing++;
+      await db.run('UPDATE movies SET download_attempts = COALESCE(download_attempts, 0) + 1 WHERE id = ?', movie.id);
       console.log(' 0 links');
     }
 
