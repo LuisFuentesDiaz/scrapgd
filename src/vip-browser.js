@@ -16,7 +16,7 @@ export async function fetchVipPage(url) {
     'User-Agent':
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
     Cookie:
-    'muser=17106; msession=71f6877bbae47590796d229ef3dcb456; cf_clearance=iUZltvGkWlhLpQHoldr3BZ4cO0CUXKVDWv8oihnbKxw-1773533806-1.2.1.1-hfb.nhW0A8zI0TyxznGpYXayS9.2MgI3TqraQXLgf8bfn_2qLN9_SKVwVn_G4waN3fyg.E7JMlaU6mP2564r0nTWAWEhuzt7m805Ai9130Ku9uNyFWIMMMEB76J_HVk3QFzK3AlaqStsBqaM2txBzE9eSpGsJG9qiW4Lbt6.0UMIiqHKHNCZcWXyWywsgxgRHBGWB8l0klgL.pliLTjkwJMBhMcMBJgcA1b5uzHYYqY',
+    'muser=17106; msession=71f6877bbae47590796d229ef3dcb456; cf_clearance=cYiH1PZXDU6mInNiw66HYmL5LZSnLXpT.aBKqtu1hY0-1773608970-1.2.1.1-95AthlDP6z_JGau6FyDTCGk.9Aj0SzGMuXJOdxA1bjQegR.059nydBuT6z5OHgQdv0hH9BO8Fgbz.BNHpJEj_nKEqCnGByaEdpZd8NEayKQybs6K2_.KjNzchRo02.D9ue1sHnO7biV1OpAX3MpbeSnrBJ5bki09nCyNRbeateRIPZ0rxRtbP70FaEEmBdMtav3748O.heRSIu91IWIalE0XONNYDZDMEMDby6yNLbs',
     Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp',
     'Accept-Language': 'es-ES,es;q=0.9',
     'Cache-Control': 'no-cache',
@@ -38,9 +38,10 @@ export async function fetchVipPage(url) {
  * Dado un enlace VIP (k5book.info/?v=...), descarga el HTML y devuelve
  * todos los enlaces dentro de la sección "Enlaces de Descargas",
  * filtrados solo a dominios de interés (Google Drive, 1fichier, Mega, MediaFire).
+ * Para Google Drive incluye downloadUrl (uc?export=download).
  *
  * @param {string | null} vipUrl
- * @returns {Promise<string[]>}
+ * @returns {Promise<{ url: string, downloadUrl?: string }[]>}
  */
 export async function extractVipLinks(vipUrl) {
   if (!vipUrl) return [];
@@ -48,11 +49,10 @@ export async function extractVipLinks(vipUrl) {
     const body = await fetchVipPage(vipUrl);
     const all = extractVipSectionLinks(body);
     const allowedDomains = ['drive.google.com', '1fichier.com', 'mega.nz', 'mediafire.com'];
-    const links = all.filter((href) => {
-      const lower = href.toLowerCase();
+    return all.filter((item) => {
+      const lower = item.url.toLowerCase();
       return allowedDomains.some((d) => lower.includes(d));
     });
-    return links;
   } catch {
     return [];
   }
@@ -71,7 +71,7 @@ async function main() {
       console.log('No se encontraron enlaces en la sección "Enlaces de Descargas".');
     } else {
       console.log('Enlaces encontrados:');
-      links.forEach((l) => console.log(l));
+      links.forEach((l) => console.log(typeof l === 'string' ? l : l.url));
     }
   } catch (err) {
     console.error('Error al extraer enlaces VIP:', err?.message || err);

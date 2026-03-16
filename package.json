@@ -11,7 +11,8 @@
     "db": "node src/db-init.js",
     "retry-links": "node src/retry-missing-links.js",
     "normalize": "node src/normalize-movies.js",
-    "fetch-detail": "node src/fetch-detail.js"
+    "fetch-detail": "node src/fetch-detail.js",
+    "gdrive-login": "node src/google-drive-login.js"
   },
   "keywords": [
     "scraping",

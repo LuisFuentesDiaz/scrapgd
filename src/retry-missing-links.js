@@ -9,7 +9,7 @@
 import 'dotenv/config';
 import { getDb } from './db.js';
 import { extractVipLinks } from './vip-browser.js';
-import { getFuenteFromUrl, getPreviewFromUrl } from './utils.js';
+import { getFuenteFromUrl, getPreviewFromUrl, getGDriveDownloadUrl, getGDriveFileSizeFromDownloadPage, isGDriveLinkExcluded, delay as utilDelay } from './utils.js';
 
 const DELAY_BETWEEN_MOVIES_MS = 800;
 const MAX_PASSES = 2;
@@ -42,7 +42,10 @@ export async function retryMoviesMissingLinks() {
 
     let links = [];
     try {
-      links = await extractVipLinks(movie.vip_url);
+      links = (await extractVipLinks(movie.vip_url)).filter((item) => {
+        const url = typeof item === 'string' ? item : item.url;
+        return !isGDriveLinkExcluded(url);
+      });
     } catch (err) {
       console.log(` error: ${err?.message || err}`);
       if (i < missing.length - 1) await delay(DELAY_BETWEEN_MOVIES_MS);
@@ -50,15 +53,26 @@ export async function retryMoviesMissingLinks() {
     }
 
     if (links.length) {
-      for (const url of links) {
+      for (let i = 0; i < links.length; i++) {
+        const item = links[i];
+        const url = typeof item === 'string' ? item : item.url;
         const source = getFuenteFromUrl(url);
         const preview = getPreviewFromUrl(url);
+        const isGDrive = source === 'Google Drive';
+        const downloadUrl = isGDrive ? (typeof item === 'object' && item.downloadUrl ? item.downloadUrl : getGDriveDownloadUrl(url)) : null;
+        let fileSize = null;
+        if (downloadUrl) {
+          fileSize = await getGDriveFileSizeFromDownloadPage(downloadUrl);
+          if (i < links.length - 1) await utilDelay(400 + Math.round(Math.random() * 300));
+        }
         await db.run(
-          'INSERT OR IGNORE INTO vip_links (movie_id, url, source, preview) VALUES (?, ?, ?, ?)',
+          'INSERT OR IGNORE INTO vip_links (movie_id, url, source, preview, file_size, download_url) VALUES (?, ?, ?, ?, ?, ?)',
           movie.id,
           url,
           source,
-          preview
+          preview,
+          fileSize,
+          downloadUrl
         );
       }
       withLinks++;

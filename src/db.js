@@ -35,6 +35,8 @@ export async function getDb() {
       url TEXT NOT NULL,
       source TEXT,
       preview TEXT,
+      file_size TEXT,
+      download_url TEXT,
       FOREIGN KEY (movie_id) REFERENCES movies(id) ON DELETE CASCADE
     );
 
@@ -43,7 +45,7 @@ export async function getDb() {
 
     DROP VIEW IF EXISTS v_movies_catalog;
     CREATE VIEW v_movies_catalog AS
-    SELECT m.title AS name, m.year, m.quality, m.url_poster, v.url, v.source ,v.preview, m.upload_date 
+    SELECT m.title AS name, m.year, m.quality, m.url_poster, v.url, v.source, v.preview, v.file_size, v.download_url, m.upload_date
     FROM movies m
     LEFT JOIN vip_links v ON v.movie_id = m.id
     WHERE v.source = 'Google Drive';
@@ -56,6 +58,8 @@ export async function getDb() {
     WHERE v.id IS NULL;
   `);
 
+  await db.exec('ALTER TABLE vip_links ADD COLUMN file_size TEXT').catch(() => {});
+  await db.exec('ALTER TABLE vip_links ADD COLUMN download_url TEXT').catch(() => {});
 
   return db;
 }

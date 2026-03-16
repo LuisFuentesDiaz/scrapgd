@@ -4,7 +4,7 @@
  */
 
 import * as cheerio from 'cheerio';
-import { isDownloadLink, DOWNLOAD_DOMAINS } from './utils.js';
+import { isDownloadLink, DOWNLOAD_DOMAINS, getGDriveDownloadUrl } from './utils.js';
 
 /**
  * Extrae todos los enlaces <a href> del documento actual (ejecutado en el contexto del navegador).
@@ -95,45 +95,58 @@ function findDownloadTabContent($) {
 
 /**
  * Extrae todos los enlaces dentro de la sección de descargas de una página VIP (HTML completo).
- * Soporta pestañas "Enlaces de Descargas", "vip", "descargas", etc.
+ * Para Google Drive incluye downloadUrl (uc?export=download). file_size se deja para uso futuro.
  *
  * @param {string} html - Código HTML de la página VIP
- * @returns {string[]} - Lista de URLs encontradas en la sección de descargas
+ * @returns {{ url: string, downloadUrl?: string }[]}
  */
 export function extractVipSectionLinks(html) {
   const $ = cheerio.load(html || '');
   const links = [];
-  const container = findDownloadTabContent($);
-
-  // Extraer enlaces: primero desde el contenedor de pestañas
   const seen = new Set();
-  function addLink(href) {
+
+  function addEntry(href) {
     if (!href || !href.startsWith('http')) return;
     const norm = href.replace(/&amp;/g, '&').trim();
-    if (norm.length < 500 && !seen.has(norm)) {
-      seen.add(norm);
-      links.push(norm);
-    }
+    if (norm.length >= 500 || seen.has(norm)) return;
+    seen.add(norm);
+
+    const isGDrive = norm.toLowerCase().includes('drive.google.com');
+    const downloadUrl = isGDrive ? getGDriveDownloadUrl(norm) : null;
+    links.push({ url: norm, ...(downloadUrl && { downloadUrl }) });
   }
 
+  const container = findDownloadTabContent($);
+
   if (container && container.length) {
-    container.find('a[href]').each((_, el) => addLink($(el).attr('href')));
+    container.find('a[href]').each((_, el) => addEntry($(el).attr('href')));
     const containerHtml = container.html() || '';
     const urlRegex = /https?:\/\/[^\s<>"')\]\]]+/g;
     let m;
     while ((m = urlRegex.exec(containerHtml)) !== null) {
-      addLink(m[0].replace(/[.,;:!?)]+$/, '').trim());
+      const norm = m[0].replace(/[.,;:!?)]+$/, '').trim();
+      if (norm.length < 500 && !seen.has(norm)) {
+        seen.add(norm);
+        const isGDrive = norm.toLowerCase().includes('drive.google.com');
+        const downloadUrl = isGDrive ? getGDriveDownloadUrl(norm) : null;
+        links.push({ url: norm, ...(downloadUrl && { downloadUrl }) });
+      }
     }
   }
 
-  // Fallback: si no se encontró nada, buscar en toda la página (estructura distinta o sin .tab_content)
   if (links.length === 0) {
-    $('a[href]').each((_, el) => addLink($(el).attr('href')));
+    $('a[href]').each((_, el) => addEntry($(el).attr('href')));
     const fullHtml = $('body').html() || $.html() || '';
     const urlRegex = /https?:\/\/[^\s<>"')\]\]]+/g;
     let m;
     while ((m = urlRegex.exec(fullHtml)) !== null) {
-      addLink(m[0].replace(/[.,;:!?)]+$/, '').trim());
+      const norm = m[0].replace(/[.,;:!?)]+$/, '').trim();
+      if (norm.length < 500 && !seen.has(norm)) {
+        seen.add(norm);
+        const isGDrive = norm.toLowerCase().includes('drive.google.com');
+        const downloadUrl = isGDrive ? getGDriveDownloadUrl(norm) : null;
+        links.push({ url: norm, ...(downloadUrl && { downloadUrl }) });
+      }
     }
   }
 

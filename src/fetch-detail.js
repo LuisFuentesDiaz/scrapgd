@@ -13,7 +13,7 @@ import { extractVipLinks } from './vip-browser.js';
 import { parseTitleInfo } from './catalogo.js';
 import { getDb } from './db.js';
 import { cleanMovieTitle } from './filters.js';
-import { getFuenteFromUrl, getPreviewFromUrl } from './utils.js';
+import { getFuenteFromUrl, getPreviewFromUrl, getGDriveDownloadUrl, getGDriveFileSizeFromDownloadPage, isGDriveLinkExcluded, delay as utilDelay } from './utils.js';
 
 function getDetailUrlFromArgs() {
   const url = process.argv[2];
@@ -44,7 +44,10 @@ async function main() {
     const data = await getMovieVipLink(detailUrl);
     let vipLinks = [];
     if (data.vipLink) {
-      vipLinks = await extractVipLinks(data.vipLink);
+      vipLinks = (await extractVipLinks(data.vipLink)).filter((item) => {
+        const url = typeof item === 'string' ? item : item.url;
+        return !isGDriveLinkExcluded(url);
+      });
     }
 
     const currentYear = new Date().getFullYear();
@@ -61,7 +64,7 @@ async function main() {
 
     const uploadDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const result = await db.run(
-      `INSERT INTO movies (page_number, title, year, quality, peliculasgd_url, vip_url, poster_url, download_attempts, upload_date)
+      `INSERT INTO movies (page_number, title, year, quality, peliculasgd_url, vip_url, url_poster, download_attempts, upload_date)
        VALUES (NULL, ?, ?, ?, ?, ?, ?, 0, ?)`,
       finalTitle,
       year || null,
@@ -77,15 +80,26 @@ async function main() {
       await db.run('UPDATE movies SET download_attempts = download_attempts + 1 WHERE id = ?', movieId);
     }
 
-    for (const link of vipLinks) {
-      const source = getFuenteFromUrl(link);
-      const preview = getPreviewFromUrl(link);
+    for (let i = 0; i < vipLinks.length; i++) {
+      const item = vipLinks[i];
+      const url = typeof item === 'string' ? item : item.url;
+      const source = getFuenteFromUrl(url);
+      const preview = getPreviewFromUrl(url);
+      const isGDrive = source === 'Google Drive';
+      const downloadUrl = isGDrive ? (typeof item === 'object' && item.downloadUrl ? item.downloadUrl : getGDriveDownloadUrl(url)) : null;
+      let fileSize = null;
+      if (downloadUrl) {
+        fileSize = await getGDriveFileSizeFromDownloadPage(downloadUrl);
+        if (i < vipLinks.length - 1) await utilDelay(400 + Math.round(Math.random() * 300));
+      }
       await db.run(
-        'INSERT OR IGNORE INTO vip_links (movie_id, url, source, preview) VALUES (?, ?, ?, ?)',
+        'INSERT OR IGNORE INTO vip_links (movie_id, url, source, preview, file_size, download_url) VALUES (?, ?, ?, ?, ?, ?)',
         movieId,
-        link,
+        url,
         source,
         preview,
+        fileSize,
+        downloadUrl,
       );
     }
 

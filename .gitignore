@@ -73,6 +73,9 @@ web_modules/
 # Bot VIP: estado de sesión (cookies Cloudflare, etc.)
 .vip-browser-state.json
 
+# Sesión de Google Drive (para obtener peso de archivos)
+.google-drive-state.json
+
 # Catálogo generado (archivos por película)
 catalogo/
 
